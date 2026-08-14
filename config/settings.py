@@ -8,11 +8,11 @@ load_dotenv()
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# OpenAI Configuration
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4-turbo')
-OPENAI_TEMPERATURE = float(os.getenv('OPENAI_TEMPERATURE', 0.7))
-OPENAI_MAX_TOKENS = int(os.getenv('OPENAI_MAX_TOKENS', 2000))
+# Gemini Configuration
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-pro')
+GEMINI_TEMPERATURE = float(os.getenv('GEMINI_TEMPERATURE', 0.7))
+GEMINI_MAX_OUTPUT_TOKENS = int(os.getenv('GEMINI_MAX_OUTPUT_TOKENS', 2048))
 
 # Application Configuration
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
@@ -52,6 +52,6 @@ LOG_CONFIG = {
     }
 }
 
-# Validate OpenAI API Key
-if not OPENAI_API_KEY:
-    raise ValueError("OPENAI_API_KEY not found in environment variables. Please set it in .env file")
+# Validate Gemini API Key
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY not found in environment variables. Please set it in .env file")

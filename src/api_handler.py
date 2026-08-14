@@ -1,30 +1,31 @@
-"""OpenAI API Handler Module"""
+"""Google Gemini API Handler Module"""
 
 import logging
 from typing import Optional
-from openai import OpenAI, APIError, RateLimitError, APIConnectionError
-from config.settings import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_TEMPERATURE, OPENAI_MAX_TOKENS
+import google.generativeai as genai
+from google.api_core.exceptions import ResourceExhausted, InvalidArgument
+from config.settings import GEMINI_API_KEY, GEMINI_MODEL, GEMINI_TEMPERATURE, GEMINI_MAX_OUTPUT_TOKENS
 
 logger = logging.getLogger(__name__)
 
 
-class OpenAIHandler:
-    """Handler for OpenAI API interactions"""
+class GeminiHandler:
+    """Handler for Google Gemini API interactions"""
 
     def __init__(self):
-        """Initialize OpenAI client"""
-        self.client = OpenAI(api_key=OPENAI_API_KEY)
-        self.model = OPENAI_MODEL
-        self.temperature = OPENAI_TEMPERATURE
-        self.max_tokens = OPENAI_MAX_TOKENS
-        logger.info(f"OpenAI Handler initialized with model: {self.model}")
+        """Initialize Gemini client"""
+        genai.configure(api_key=GEMINI_API_KEY)
+        self.model = GEMINI_MODEL
+        self.temperature = GEMINI_TEMPERATURE
+        self.max_output_tokens = GEMINI_MAX_OUTPUT_TOKENS
+        logger.info(f"Gemini Handler initialized with model: {self.model}")
 
     def call_api(self, messages: list, temperature: Optional[float] = None, 
                  max_tokens: Optional[int] = None) -> str:
-        """Call OpenAI API with error handling
+        """Call Gemini API with error handling
         
         Args:
-            messages: List of message dictionaries
+            messages: List of message dictionaries with 'role' and 'content'
             temperature: Optional temperature override
             max_tokens: Optional max tokens override
             
@@ -32,32 +33,45 @@ class OpenAIHandler:
             str: API response content
         """
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=temperature or self.temperature,
-                max_tokens=max_tokens or self.max_tokens
+            # Initialize the model
+            model = genai.GenerativeModel(self.model)
+            
+            # Convert messages format for Gemini
+            chat_history = []
+            for msg in messages[:-1]:  # All but last message
+                chat_history.append({
+                    "role": "user" if msg["role"] == "user" else "model",
+                    "parts": [msg["content"]]
+                })
+            
+            # Create chat session
+            chat = model.start_chat(history=chat_history)
+            
+            # Send the last message
+            response = chat.send_message(
+                messages[-1]["content"],
+                generation_config=genai.types.GenerationConfig(
+                    temperature=temperature or self.temperature,
+                    max_output_tokens=max_tokens or self.max_output_tokens
+                )
             )
             
-            content = response.choices[0].message.content
-            logger.info(f"API call successful. Tokens used: {response.usage.total_tokens}")
+            content = response.text
+            logger.info(f"API call successful")
             return content
             
-        except RateLimitError as e:
+        except ResourceExhausted as e:
             logger.error(f"Rate limit exceeded: {str(e)}")
             raise Exception("API rate limit exceeded. Please try again later.")
-        except APIConnectionError as e:
-            logger.error(f"API connection error: {str(e)}")
-            raise Exception("Failed to connect to OpenAI API. Check your internet connection.")
-        except APIError as e:
-            logger.error(f"OpenAI API error: {str(e)}")
-            raise Exception(f"OpenAI API error: {str(e)}")
+        except InvalidArgument as e:
+            logger.error(f"Invalid argument: {str(e)}")
+            raise Exception(f"Invalid API request: {str(e)}")
         except Exception as e:
-            logger.error(f"Unexpected error: {str(e)}")
-            raise
+            logger.error(f"Gemini API error: {str(e)}")
+            raise Exception(f"Gemini API error: {str(e)}")
 
     def generate_response(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        """Generate a response from OpenAI
+        """Generate a response from Gemini
         
         Args:
             prompt: User prompt/question
@@ -68,9 +82,12 @@ class OpenAIHandler:
         """
         messages = []
         
+        # Combine system prompt with user prompt
         if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
+            combined_prompt = f"{system_prompt}\n\n{prompt}"
+        else:
+            combined_prompt = prompt
         
-        messages.append({"role": "user", "content": prompt})
+        messages.append({"role": "user", "content": combined_prompt})
         
         return self.call_api(messages)
